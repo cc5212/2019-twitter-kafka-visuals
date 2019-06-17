@@ -45,6 +45,7 @@ NUM_RETRIES = 3
 words = ""
 nltk.download('stopwords')
 stopWords = stopwords.words('english')
+stopWords += stopwords.words('spanish')
 
 class StdOutListener(StreamListener):
     """A listener handles tweets that are received from the stream.
@@ -93,7 +94,7 @@ def clean(tweet):
 
 if __name__ == '__main__':
     TWITTER_TEXT_FILTER = raw_input("Inserte su hashtag: #")
-    stopWords.append(TWITTER_TEXT_FILTER)
+    stopWords += re.findall('[A-Z][^A-Z]*', TWITTER_TEXT_FILTER)
     logging.basicConfig(
         format='%(asctime)s.%(msecs)s:%(name)s:%(thread)d:%(levelname)s:%(process)d:%(message)s',
         level=logging.INFO
