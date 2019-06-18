@@ -21,7 +21,6 @@ from PIL import Image
 # Sentiment analysis
 from textblob import TextBlob
 
-import matplotlib.pyplot as plt
 import numpy as np
 import re
 import string
@@ -71,7 +70,7 @@ class StdOutListener(StreamListener):
         # Sentiment analysis
         k = 1
         positive_tweets, negative_tweets = sentiment_analysis(clean_tweets, k)
-        if len(positive_tweets) >= k and  len(negative_tweets) >= k:
+        if len(positive_tweets) >= k and len(negative_tweets) >= k:
             print
             print("Top {} positive tweets:".format(k))
             for i in range(k):
