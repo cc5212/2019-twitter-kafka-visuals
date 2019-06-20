@@ -16,11 +16,7 @@ from tweepy import Stream
 from tweepy.streaming import StreamListener
 from kafka import KafkaProducer
 # Wordcloud
-import numpy as np
-import pandas as pd
-from os import path
-from PIL import Image
-from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+from wordcloud import WordCloud
 
 import matplotlib.pyplot as plt
 import re
@@ -58,7 +54,7 @@ class StdOutListener(StreamListener):
         global words
         """What to do when tweet data is received."""
         data_json = json.loads(data)
-        str_tweet = data_json['text'].encode('utf-8')
+        str_tweet = data_json['text'].encode('utf-8').lower()
         self.producer.send(KAFKA_TOPIC, str_tweet)
         print("-", str_tweet)
         tweet_clean = clean(str_tweet)
@@ -76,11 +72,11 @@ class StdOutListener(StreamListener):
         plt.close()
 
     def on_error(self, status):
-        print status
+        print(status)
 
 def clean(tweet):
     tweet = re.sub(r'[.,"!]+', '', tweet, flags=re.MULTILINE)               # removes the characters specified
-    tweet = re.sub(r'^RT[\s]+', '', tweet, flags=re.MULTILINE)              # removes RT
+    tweet = re.sub(r'^rt[\s]+', '', tweet, flags=re.MULTILINE)              # removes RT
     tweet = re.sub(r'https?:\/\/.*[\r\n]*', '', tweet, flags=re.MULTILINE)  # remove link
     tweet = re.sub(r'[:]+', '', tweet, flags=re.MULTILINE)
     tweet = filter(lambda x: x in string.printable, tweet)                  # filter non-ascii characers
