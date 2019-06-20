@@ -107,13 +107,6 @@ def preprocess(tweet):
             processed_tweet.append(stemmer.stem(WordNetLemmatizer().lemmatize(token, pos='v')))
 
     return processed_tweet 
-
-
-def get_topics(tweets, k):
-    '''
-    Extract k topics from tweets
-    '''
-    
     
 
 if __name__ == '__main__':
