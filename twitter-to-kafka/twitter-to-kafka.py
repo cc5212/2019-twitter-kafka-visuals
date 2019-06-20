@@ -43,9 +43,15 @@ KAFKA_ENDPOINT = '{0}:{1}'.format(config.get('Kafka', 'kafka_endpoint'), config.
 KAFKA_TOPIC = config.get('Kafka', 'topic')
 NUM_RETRIES = 3
 words = ""
+# Stopwords (Spanish and English)
 nltk.download('stopwords')
 stopWords = stopwords.words('english')
 stopWords += stopwords.words('spanish')
+# Number of tweets
+n = 5
+i = 0
+# Display time
+d_time = 2
 
 class StdOutListener(StreamListener):
     """A listener handles tweets that are received from the stream.
@@ -56,24 +62,27 @@ class StdOutListener(StreamListener):
 
     def on_data(self, data):
         global words
+        global i
         """What to do when tweet data is received."""
         data_json = json.loads(data)
         str_tweet = data_json['text'].encode('utf-8')
         self.producer.send(KAFKA_TOPIC, str_tweet)
         print("-", str_tweet)
+        # Clean tweet
         tweet_clean = clean(str_tweet)
-        print("-", tweet_clean)
-        words = words + tweet_clean
-
-        # Create and generate a word cloud image:
-        wordcloud = WordCloud(stopwords=stopWords, background_color="white").generate(words)
-
-        # Mostrar el grafico cada 3 segundos
-        plt.imshow(wordcloud, interpolation='bilinear')
-        plt.axis("off")
-        plt.show(block=False)
-        plt.pause(3)
-        plt.close()
+        words += tweet_clean
+        i += 1
+        i = i % n
+        # Create wordcloud each n tweets
+        if i == 0:
+            # Create and generate a word cloud image:
+            wordcloud = WordCloud(stopwords=stopWords, background_color="white").generate(words)
+            # Mostrar el grafico cada 3 segundos
+            plt.imshow(wordcloud, interpolation='bilinear')
+            plt.axis("off")
+            plt.show(block=False)
+            plt.pause(d_time)
+            plt.close()
 
     def on_error(self, status):
         print status
