@@ -94,13 +94,16 @@ class Consumer(multiprocessing.Process):
                 global wcdict
                 global wcfreq
                 global words
-                # Clean tweet and print
+                # Clean tweet
                 tweet_clean = clean(message.value)
-                print("-", tweet_clean)
 
                 # Sentiment analysis
                 analysis = TextBlob(tweet_clean)
                 sentiment = analysis.sentiment.polarity
+
+                # Print tweet and sentiment
+                print("-", tweet_clean, sentiment)
+
                 # Test for words (Comentar despues)
                 for t in tweet_clean.split(" "):
                     if (t != "" and t not in stopWords):
@@ -138,7 +141,7 @@ class Consumer(multiprocessing.Process):
                                            color_func=my_tf_color_func)
                     wordcloud = wordcloud.generate_from_frequencies(wcfreq)
                     print(wcdict)
-                    print(wcfreq)
+                    #print(wcfreq)
                     # Mostrar el grafico cada 3 segundos
                     plt.imshow(wordcloud, interpolation='bilinear')
                     plt.axis("off")
@@ -151,14 +154,9 @@ class Consumer(multiprocessing.Process):
 
 def my_tf_color_func(word, **kwargs):
     global wcdict
-    clrred = 'rgb(222,0,0)'
-    clrgrn = 'rgb(0,222,0)'
-    min_value = min(wcdict.values())
-    max_value = max(wcdict.values())
     act_value = wcdict[word]
-    norm_value = (act_value - min_value)/(max_value - min_value)
-    colour = 'rgb(' + str(int(round(222*(1-norm_value)))) + "," + str(int(round(222*norm_value))) + ',0)'
-    return colour
+    norm_value = (act_value + 1) / 2
+    return "hsl(%d, 80%%, 50%%)" % (120 * norm_value)
 
 def clean(tweet):
     tweet = re.sub(r'[.,"!]+', '', tweet, flags=re.MULTILINE)               # removes the characters specified
@@ -197,8 +195,6 @@ if __name__ == '__main__':
         stream.sample()
     else:
         stream.filter(track=["#"+TWITTER_TEXT_FILTER])
-
-    time.sleep(300)
     producer.stop()
     consumer.stop()
     producer.join()
