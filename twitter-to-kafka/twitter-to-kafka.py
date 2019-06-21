@@ -5,13 +5,10 @@ to pull in tweets and publish them to a Kafka topic.
 """
 
 # Twitter API
-import base64
-import datetime
-import os
 import logging
 import ConfigParser
 import simplejson as json
-import time
+
 from tweepy import OAuthHandler
 from tweepy import Stream
 from tweepy.streaming import StreamListener
@@ -29,11 +26,10 @@ from textblob import TextBlob
 import multiprocessing
 # LDA topics
 import gensim
-from gensim import corpora, models
-from gensim.utils import simple_preprocess
-from gensim.parsing.preprocessing import STOPWORDS
+from gensim import models
 from nltk.stem import WordNetLemmatizer, SnowballStemmer
 from nltk.stem.porter import *
+nltk.download('wordnet')
 
 # Get your twitter credentials from the environment variables.
 # These are set in the 'twitter-stream.json' manifest file.
@@ -117,10 +113,10 @@ class Consumer(multiprocessing.Process):
 
                 # Extract topics
                 if len(clean_tweets) > 0 and len(clean_tweets) % n == 0:
-                    wcdict, wcfreq= topic_analysis(clean_tweets, n_topics, n_words, tweets_sentiment)
+                    wcdict, wcfreq = topic_analysis(clean_tweets, n_topics, n_words, tweets_sentiment)
                     # Wordcloud (Imprime cada n tweets, esperando d_time segundos)
                     wordcloud = WordCloud(stopwords=stopWords, collocations=False, background_color="white",
-                                           color_func=my_tf_color_func)
+                                          color_func=my_tf_color_func)
                     wordcloud = wordcloud.generate_from_frequencies(wcfreq)
                     plt.imshow(wordcloud, interpolation='bilinear')
                     plt.axis("off")
@@ -160,6 +156,7 @@ def clean(tweet):
     tweet = new_tweet
     return tweet
 
+
 def topic_analysis(processed_tweets, num_topics, words_by_topic, sentiment_list):
     '''
     Performs LDA analysis. Returns two dictionaries:
@@ -175,7 +172,8 @@ def topic_analysis(processed_tweets, num_topics, words_by_topic, sentiment_list)
     tfidf = models.TfidfModel(bow)
     tweets_tfidf = tfidf[bow]
     # Extract LDA topics
-    lda_model_tfidf = gensim.models.LdaMulticore(tweets_tfidf, num_topics=num_topics, id2word=dictionary, passes=2, workers=4)
+    lda_model_tfidf = gensim.models.LdaMulticore(
+        tweets_tfidf, num_topics=num_topics, id2word=dictionary, passes=2, workers=4)
     # Create dictionaries
     topics_names = []
     wcdict = {}
@@ -208,7 +206,7 @@ def preprocess(tweet):
     Cleans tweet, removes stopwords. Performs tokenization,
     lemmatization and stemming.
     '''
-    #cleaned_tweet = preprocessor.clean(tweet)  # Cleans tweet
+    # cleaned_tweet = preprocessor.clean(tweet)  # Cleans tweet
     cleaned_tweet = clean(tweet)
     processed_tweet = []
     stemmer = SnowballStemmer("english")
@@ -217,6 +215,7 @@ def preprocess(tweet):
             processed_tweet.append(stemmer.stem(WordNetLemmatizer().lemmatize(token, pos='v')))
 
     return processed_tweet
+
 
 if __name__ == '__main__':
     multiprocessing.freeze_support()
@@ -242,7 +241,7 @@ if __name__ == '__main__':
     if TWITTER_STREAMING_MODE == 'sample':
         stream.sample()
     else:
-        stream.filter(track=["#"+TWITTER_TEXT_FILTER])
+        stream.filter(track=["#" + TWITTER_TEXT_FILTER])
     listener.stop()
     consumer.stop()
     listener.join()
