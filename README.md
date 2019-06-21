@@ -44,10 +44,10 @@ For this project, we used Docker, Python(2.7) and Kafka. We chose to develop all
 
 The results obtained show that any hashtag can be monitored in a simple way. We are very happy with the graphics because you can see real topics going on, and the colors are mostly related (looking at the printed tweets and its sentiment scores).
 
-<center>![](https://raw.githubusercontent.com/cc5212/2019-twitter-kafka-visuals/master/images/kafka-twitter1.jpeg)</center>
+![console output](https://raw.githubusercontent.com/cc5212/2019-twitter-kafka-visuals/master/images/kafka-twitter1.jpeg)
 <center>#FirstDayofSummer analysis and clasification by sentiment score</center>
 <br>
-<center>![](https://raw.githubusercontent.com/cc5212/2019-twitter-kafka-visuals/master/images/kafka-twitter2.jpeg)</center>
+<center>![matplotlib graph](https://raw.githubusercontent.com/cc5212/2019-twitter-kafka-visuals/master/images/kafka-twitter2.jpeg)</center>
 <center>#FirstDayofSummer word cloud</center>
 
 
