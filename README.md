@@ -47,7 +47,7 @@ The results obtained show that any hashtag can be monitored in a simple way. We 
 ![console output](https://raw.githubusercontent.com/cc5212/2019-twitter-kafka-visuals/master/images/kafka-twitter1.jpeg)
 <center>#FirstDayofSummer analysis and clasification by sentiment score</center>
 <br>
-<center>![matplotlib graph](https://raw.githubusercontent.com/cc5212/2019-twitter-kafka-visuals/master/images/kafka-twitter2.jpeg)</center>
+![matplotlib graph](https://raw.githubusercontent.com/cc5212/2019-twitter-kafka-visuals/master/images/kafka-twitter2.jpeg)
 <center>#FirstDayofSummer word cloud</center>
 
 
