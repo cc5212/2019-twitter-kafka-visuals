@@ -33,6 +33,7 @@ import re
 import string
 from nltk.corpus import stopwords
 import nltk
+nltk.download("wordnet")
 
 # Get your twitter credentials from the environment variables.
 # These are set in the 'twitter-stream.json' manifest file.
@@ -86,11 +87,11 @@ class StdOutListener(StreamListener):
         if len(clean_tweets) % 10 == 0 and len(clean_tweets) > 0 :
             num_topics = 10
             lda_model_tfidf = gensim.models.LdaMulticore(tweets_tfidf, num_topics=num_topics, id2word=dictionary, passes=2, workers=4)
-            
+
             for idx, topic in lda_model_tfidf.print_topics(-1):
                 print('Topic: {} Word: {}'.format(idx, topic))
-            
-        
+        time.sleep(3)
+
     def on_error(self, status):
         print status
 
@@ -106,8 +107,8 @@ def preprocess(tweet):
         if token not in gensim.parsing.preprocessing.STOPWORDS and len(token) > 3:
             processed_tweet.append(stemmer.stem(WordNetLemmatizer().lemmatize(token, pos='v')))
 
-    return processed_tweet 
-    
+    return processed_tweet
+
 
 if __name__ == '__main__':
     TWITTER_TEXT_FILTER = raw_input("Inserte su hashtag: #")
