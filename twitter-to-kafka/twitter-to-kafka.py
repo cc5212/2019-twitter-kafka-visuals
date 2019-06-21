@@ -60,6 +60,8 @@ stopWords += stopwords.words('spanish')
 # Number of tweets
 n = 100
 i = 0
+n_topics = 20
+n_words = 3
 # Display time
 d_time = 20
 # Sentiment analysis
@@ -112,7 +114,7 @@ class Consumer(multiprocessing.Process):
 
                 # Extract topics
                 if len(clean_tweets) > 0 and len(clean_tweets) % n == 0:
-                    wcdict, wcfreq= topic_analysis(clean_tweets, 20, 3, tweets_sentiment)
+                    wcdict, wcfreq= topic_analysis(clean_tweets, n_topics, n_words, tweets_sentiment)
                     # Wordcloud (Imprime cada n tweets, esperando d_time segundos)
                     wordcloud = WordCloud(stopwords=stopWords, collocations=False, background_color="white",
                                            color_func=my_tf_color_func)
