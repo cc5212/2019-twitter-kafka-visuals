@@ -61,13 +61,11 @@ stopWords += stopwords.words('spanish')
 n = 100
 i = 0
 # Display time
-d_time = 5
+d_time = 20
 # Sentiment analysis
 wcdict = {}
 # Global frequencies
 wcfreq = {}
-
-
 class StdOutListener(StreamListener):
     producer = KafkaProducer(bootstrap_servers=KAFKA_ENDPOINT)
 
@@ -98,7 +96,6 @@ class Consumer(multiprocessing.Process):
                 global i
                 global wcdict
                 global wcfreq
-                global words
                 # Clean tweet
                 tweet_clean = clean(message.value)
                 processed_tweet = preprocess(message.value)
@@ -111,13 +108,12 @@ class Consumer(multiprocessing.Process):
 
                 # Print tweet and sentiment
                 #print("-", sentiment, tweet_clean)
-                print("{} - {}".format(len(clean_tweets), tweet_clean))
+                print("{} - {} - {}".format(len(clean_tweets), sentiment, tweet_clean))
 
                 # Extract topics
                 if len(clean_tweets) > 0 and len(clean_tweets) % n == 0:
-                    wcdict, wcfreq = topic_analysis(clean_tweets, 20, 3, tweets_sentiment)
+                    wcdict, wcfreq= topic_analysis(clean_tweets, 20, 3, tweets_sentiment)
                     # Wordcloud (Imprime cada n tweets, esperando d_time segundos)
-                    # Create and generate a word cloud image:
                     wordcloud = WordCloud(stopwords=stopWords, collocations=False, background_color="white",
                                            color_func=my_tf_color_func)
                     wordcloud = wordcloud.generate_from_frequencies(wcfreq)
@@ -126,18 +122,6 @@ class Consumer(multiprocessing.Process):
                     plt.show(block=False)
                     plt.pause(d_time)
                     plt.close()
-                # Test for words (Comentar despues)
-                #for t in tweet_clean.split(" "):
-                #    if (t != "" and t not in stopWords):
-                #        words += " " + t
-                #        if t in wcfreq:
-                #            wcfreq[t] += 1
-                #        else:
-                #            wcfreq[t] = 1
-                #        if t in wcdict:
-                #            wcdict[t] += sentiment
-                #        else:
-                #            wcdict[t] = sentiment
 
                 if self.stop_event.is_set():
                     break
@@ -146,7 +130,13 @@ class Consumer(multiprocessing.Process):
 def my_tf_color_func(word, **kwargs):
     global wcdict
     global wcfreq
-    act_value = wcdict[word] / wcfreq[word]
+    max_value = max(wcdict.values())
+    min_value = abs(min(wcdict.values()))
+    act_value = wcdict[word]
+    if act_value > 0 and max_value != 0:
+        act_value = act_value / max_value
+    elif act_value < 0 and min_value != 0:
+        act_value = act_value / min_value
     norm_value = (act_value + 1) / 2
     return "hsl(%d, 80%%, 50%%)" % (120 * norm_value)
 
