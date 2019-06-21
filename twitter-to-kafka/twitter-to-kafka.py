@@ -4,6 +4,7 @@
 to pull in tweets and publish them to a Kafka topic.
 """
 
+# Twitter API
 import base64
 import datetime
 import os
@@ -16,21 +17,23 @@ from tweepy import Stream
 from tweepy.streaming import StreamListener
 from kafka import KafkaProducer, KafkaConsumer
 # Wordcloud
-import numpy as np
-import pandas as pd
-from os import path
-from PIL import Image
-from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+from nltk.corpus import stopwords
+import nltk
+import re
+import string
 # Sentiment analysis
 from textblob import TextBlob
 # Consumer
 import multiprocessing
-
-import matplotlib.pyplot as plt
-import re
-import string
-from nltk.corpus import stopwords
-import nltk
+# LDA topics
+import gensim
+from gensim import corpora, models
+from gensim.utils import simple_preprocess
+from gensim.parsing.preprocessing import STOPWORDS
+from nltk.stem import WordNetLemmatizer, SnowballStemmer
+from nltk.stem.porter import *
 
 # Get your twitter credentials from the environment variables.
 # These are set in the 'twitter-stream.json' manifest file.
@@ -48,13 +51,14 @@ KAFKA_TOPIC = config.get('Kafka', 'topic')
 NUM_RETRIES = 3
 # Global variables
 clean_tweets = []
+tweets_sentiment = []
 words = ""
 # Stopwords (Spanish and English)
 nltk.download('stopwords')
 stopWords = stopwords.words('english')
 stopWords += stopwords.words('spanish')
 # Number of tweets
-n = 10
+n = 100
 i = 0
 # Display time
 d_time = 5
@@ -62,6 +66,7 @@ d_time = 5
 wcdict = {}
 # Global frequencies
 wcfreq = {}
+
 
 class StdOutListener(StreamListener):
     producer = KafkaProducer(bootstrap_servers=KAFKA_ENDPOINT)
@@ -96,57 +101,44 @@ class Consumer(multiprocessing.Process):
                 global words
                 # Clean tweet
                 tweet_clean = clean(message.value)
+                processed_tweet = preprocess(message.value)
+                clean_tweets.append(processed_tweet)
 
                 # Sentiment analysis
                 analysis = TextBlob(tweet_clean)
                 sentiment = analysis.sentiment.polarity
+                tweets_sentiment.append(sentiment)
 
                 # Print tweet and sentiment
-                print("-", sentiment, tweet_clean,)
+                #print("-", sentiment, tweet_clean)
+                print("{} - {}".format(len(clean_tweets), tweet_clean))
 
-                # Test for words (Comentar despues)
-                for t in tweet_clean.split(" "):
-                    if (t != "" and t not in stopWords):
-                        words += " " + t
-                        if t in wcfreq:
-                            wcfreq[t] += 1
-                        else:
-                            wcfreq[t] = 1
-                        if t in wcdict:
-                            wcdict[t] += sentiment
-                        else:
-                            wcdict[t] = sentiment
-
-                # Topic analysis
-                # Obtener aca el topico de tweet_clean
-                # con ese topico, que llamaremos "topic"
-                # lo agregaremos al diccionario
-                # topic = topicanalysis(tweet_clean)
-                # if (topic != "" and topic not in stopWords):
-                #   if t in wcdict:
-                #       wcdict[topic] += sentiment
-                #   else:
-                #       wcdict[topic] = sentiment
-                # Imprime el diccionario para ver que va bien
-                # print(wcdict)
-
-                # Wordcloud (Imprime cada n tweets, esperando d_time segundos)
-                i += 1
-                i = i % n
-                # Create wordcloud each n tweets
-                if i == 0:
+                # Extract topics
+                if len(clean_tweets) > 0 and len(clean_tweets) % n == 0:
+                    wcdict, wcfreq = topic_analysis(clean_tweets, 20, 3, tweets_sentiment)
+                    # Wordcloud (Imprime cada n tweets, esperando d_time segundos)
                     # Create and generate a word cloud image:
                     wordcloud = WordCloud(stopwords=stopWords, collocations=False, background_color="white",
                                            color_func=my_tf_color_func)
                     wordcloud = wordcloud.generate_from_frequencies(wcfreq)
-                    print(wcdict)
-                    #print(wcfreq)
-                    # Mostrar el grafico cada 3 segundos
                     plt.imshow(wordcloud, interpolation='bilinear')
                     plt.axis("off")
                     plt.show(block=False)
                     plt.pause(d_time)
                     plt.close()
+                # Test for words (Comentar despues)
+                #for t in tweet_clean.split(" "):
+                #    if (t != "" and t not in stopWords):
+                #        words += " " + t
+                #        if t in wcfreq:
+                #            wcfreq[t] += 1
+                #        else:
+                #            wcfreq[t] = 1
+                #        if t in wcdict:
+                #            wcdict[t] += sentiment
+                #        else:
+                #            wcdict[t] = sentiment
+
                 if self.stop_event.is_set():
                     break
         consumer.close()
@@ -170,6 +162,64 @@ def clean(tweet):
             new_tweet += i + ' '
     tweet = new_tweet
     return tweet
+
+def topic_analysis(processed_tweets, num_topics, words_by_topic, sentiment_list):
+    '''
+    Performs LDA analysis. Returns two dictionaries:
+    wcdict: keys are words_by_topic most relevant words for each topic; values are given by the
+    sentiment score of each tweet multiplied by the relevance of that
+    topic in the tweet.
+    wcfreq: keys are the same as before. Values are the frequency of topic words in all tweets.
+    '''
+    # Create bag of words
+    dictionary = gensim.corpora.Dictionary(processed_tweets)
+    bow = [dictionary.doc2bow(tweet) for tweet in processed_tweets]
+    # TF-IDF
+    tfidf = models.TfidfModel(bow)
+    tweets_tfidf = tfidf[bow]
+    # Extract LDA topics
+    lda_model_tfidf = gensim.models.LdaMulticore(tweets_tfidf, num_topics=num_topics, id2word=dictionary, passes=2, workers=4)
+    # Create dictionaries
+    topics_names = []
+    wcdict = {}
+    wcfreq = {}
+    for i in range(num_topics):
+        # Topic name will be its topn words
+        topic_name = ''
+        for elem in lda_model_tfidf.show_topic(topicid=i, topn=words_by_topic):
+            topic_name += elem[0] + '-'
+        topic_name = topic_name[:-1]  # Remove last -
+        topics_names.append(topic_name)
+        wcdict[topic_name] = 0
+        wcfreq[topic_name] = 0
+
+    # Iterate over tweets
+    for idx, tweet in enumerate(processed_tweets):
+        tweet_topics = lda_model_tfidf.get_document_topics(bow[idx])  # (topic, relevance)
+        for elem in tweet_topics:
+            wcdict[topics_names[elem[0]]] += elem[1] * sentiment_list[idx]
+        for word in tweet:
+            for idx2, topic_name in enumerate(topics_names):
+                if word in topic_name:
+                    wcfreq[topics_names[idx2]] += 1
+
+    return wcdict, wcfreq
+
+
+def preprocess(tweet):
+    '''
+    Cleans tweet, removes stopwords. Performs tokenization,
+    lemmatization and stemming.
+    '''
+    #cleaned_tweet = preprocessor.clean(tweet)  # Cleans tweet
+    cleaned_tweet = clean(tweet)
+    processed_tweet = []
+    stemmer = SnowballStemmer("english")
+    for token in gensim.utils.simple_preprocess(cleaned_tweet):
+        if token not in gensim.parsing.preprocessing.STOPWORDS and len(token) > 3:
+            processed_tweet.append(stemmer.stem(WordNetLemmatizer().lemmatize(token, pos='v')))
+
+    return processed_tweet
 
 if __name__ == '__main__':
     TWITTER_TEXT_FILTER = raw_input("Inserte su hashtag: #")
