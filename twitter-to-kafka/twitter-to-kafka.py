@@ -102,7 +102,7 @@ class Consumer(multiprocessing.Process):
                 sentiment = analysis.sentiment.polarity
 
                 # Print tweet and sentiment
-                print("-", tweet_clean, sentiment)
+                print("-", sentiment, tweet_clean,)
 
                 # Test for words (Comentar despues)
                 for t in tweet_clean.split(" "):
@@ -136,8 +136,7 @@ class Consumer(multiprocessing.Process):
                 # Create wordcloud each n tweets
                 if i == 0:
                     # Create and generate a word cloud image:
-                    wordcloud = WordCloud(stopwords=stopWords, collocations=False,
-                                           colormap='plasma', background_color="white",
+                    wordcloud = WordCloud(stopwords=stopWords, collocations=False, background_color="white",
                                            color_func=my_tf_color_func)
                     wordcloud = wordcloud.generate_from_frequencies(wcfreq)
                     print(wcdict)
@@ -154,7 +153,8 @@ class Consumer(multiprocessing.Process):
 
 def my_tf_color_func(word, **kwargs):
     global wcdict
-    act_value = wcdict[word]
+    global wcfreq
+    act_value = wcdict[word] / wcfreq[word]
     norm_value = (act_value + 1) / 2
     return "hsl(%d, 80%%, 50%%)" % (120 * norm_value)
 
@@ -195,7 +195,7 @@ if __name__ == '__main__':
         stream.sample()
     else:
         stream.filter(track=["#"+TWITTER_TEXT_FILTER])
-    producer.stop()
+    listener.stop()
     consumer.stop()
-    producer.join()
+    listener.join()
     consumer.join()
