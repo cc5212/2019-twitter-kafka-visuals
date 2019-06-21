@@ -1,6 +1,6 @@
 # Real Time Twitter Analysis and visualization using Kafka
 
-In this project, we analyze hashtags related tweets using **Python** and **Kafka** stream message platform to connect the tweets retrieve procces and the tweets analysis and visualizations process. Our analysis proccess it could be easily extended, but for project proposes we develop topics, sentiment and word-frequency analysis.
+In this project, we analyze hashtags related tweets using **Python** and **Kafka** stream message platform to connect the tweets retrieve procces and the tweets analysis and visualizations process. Our analysis proccess it could be easily extended, but for project propose we develop topics, sentiment and word-frequency analysis.
 
 ## Requirements
 
