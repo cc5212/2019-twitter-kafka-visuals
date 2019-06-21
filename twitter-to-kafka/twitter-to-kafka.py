@@ -54,12 +54,14 @@ nltk.download('stopwords')
 stopWords = stopwords.words('english')
 stopWords += stopwords.words('spanish')
 # Number of tweets
-n = 100
+n = 10
 i = 0
 # Display time
 d_time = 5
 # Sentiment analysis
 wcdict = {}
+# Global frequencies
+wcfreq = {}
 
 class StdOutListener(StreamListener):
     producer = KafkaProducer(bootstrap_servers=KAFKA_ENDPOINT)
@@ -82,9 +84,7 @@ class Consumer(multiprocessing.Process):
         self.stop_event.set()
 
     def run(self):
-        consumer = KafkaConsumer(bootstrap_servers=KAFKA_ENDPOINT,
-                                 auto_offset_reset='earliest',
-                                 consumer_timeout_ms=100)
+        consumer = KafkaConsumer(bootstrap_servers=KAFKA_ENDPOINT, consumer_timeout_ms=100)
         consumer.subscribe([KAFKA_TOPIC])
 
         while not self.stop_event.is_set():
@@ -92,6 +92,7 @@ class Consumer(multiprocessing.Process):
                 # Global variables
                 global i
                 global wcdict
+                global wcfreq
                 global words
                 # Clean tweet and print
                 tweet_clean = clean(message.value)
@@ -100,15 +101,18 @@ class Consumer(multiprocessing.Process):
                 # Sentiment analysis
                 analysis = TextBlob(tweet_clean)
                 sentiment = analysis.sentiment.polarity
-
                 # Test for words (Comentar despues)
                 for t in tweet_clean.split(" "):
                     if (t != "" and t not in stopWords):
                         words += " " + t
-                        if t in wcdict:
-                            wcdict[t] += 1
+                        if t in wcfreq:
+                            wcfreq[t] += 1
                         else:
-                            wcdict[t] = 1
+                            wcfreq[t] = 1
+                        if t in wcdict:
+                            wcdict[t] += sentiment
+                        else:
+                            wcdict[t] = sentiment
 
                 # Topic analysis
                 # Obtener aca el topico de tweet_clean
@@ -132,7 +136,9 @@ class Consumer(multiprocessing.Process):
                     wordcloud = WordCloud(stopwords=stopWords, collocations=False,
                                            colormap='plasma', background_color="white",
                                            color_func=my_tf_color_func)
-                    wordcloud = wordcloud.generate_from_frequencies(wcdict)
+                    wordcloud = wordcloud.generate_from_frequencies(wcfreq)
+                    print(wcdict)
+                    print(wcfreq)
                     # Mostrar el grafico cada 3 segundos
                     plt.imshow(wordcloud, interpolation='bilinear')
                     plt.axis("off")
@@ -141,12 +147,18 @@ class Consumer(multiprocessing.Process):
                     plt.close()
                 if self.stop_event.is_set():
                     break
-
         consumer.close()
 
 def my_tf_color_func(word, **kwargs):
     global wcdict
-    return "hsl(%d, 80%%, 50%%)" % (360 * wcdict[word])
+    clrred = 'rgb(222,0,0)'
+    clrgrn = 'rgb(0,222,0)'
+    min_value = min(wcdict.values())
+    max_value = max(wcdict.values())
+    act_value = wcdict[word]
+    norm_value = (act_value - min_value)/(max_value - min_value)
+    colour = 'rgb(' + str(int(round(222*(1-norm_value)))) + "," + str(int(round(222*norm_value))) + ',0)'
+    return colour
 
 def clean(tweet):
     tweet = re.sub(r'[.,"!]+', '', tweet, flags=re.MULTILINE)               # removes the characters specified
