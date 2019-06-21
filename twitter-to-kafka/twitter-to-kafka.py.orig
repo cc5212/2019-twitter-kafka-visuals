@@ -4,6 +4,9 @@
 to pull in tweets and publish them to a Kafka topic.
 """
 
+import base64
+import datetime
+import os
 import logging
 import ConfigParser
 import simplejson as json
@@ -13,12 +16,19 @@ from tweepy import Stream
 from tweepy.streaming import StreamListener
 from kafka import KafkaProducer, KafkaConsumer
 # Wordcloud
-
+<<<<<<< HEAD
 from wordcloud import WordCloud
+=======
+import numpy as np
+import pandas as pd
+from os import path
+from PIL import Image
+from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 # Sentiment analysis
 from textblob import TextBlob
 # Consumer
 import multiprocessing
+>>>>>>> 413ae32108475b5071e9e59d0a71a07d79158047
 
 import matplotlib.pyplot as plt
 import re
@@ -57,7 +67,6 @@ wcdict = {}
 # Global frequencies
 wcfreq = {}
 
-
 class StdOutListener(StreamListener):
     producer = KafkaProducer(bootstrap_servers=KAFKA_ENDPOINT)
 
@@ -69,7 +78,6 @@ class StdOutListener(StreamListener):
 
     def on_error(self, status):
         print(status)
-
 
 class Consumer(multiprocessing.Process):
     def __init__(self):
@@ -130,8 +138,8 @@ class Consumer(multiprocessing.Process):
                 if i == 0:
                     # Create and generate a word cloud image:
                     wordcloud = WordCloud(stopwords=stopWords, collocations=False,
-                                          colormap='plasma', background_color="white",
-                                          color_func=my_tf_color_func)
+                                           colormap='plasma', background_color="white",
+                                           color_func=my_tf_color_func)
                     wordcloud = wordcloud.generate_from_frequencies(wcfreq)
                     print(wcdict)
                     print(wcfreq)
@@ -145,7 +153,6 @@ class Consumer(multiprocessing.Process):
                     break
         consumer.close()
 
-
 def my_tf_color_func(word, **kwargs):
     global wcdict
     clrred = 'rgb(222,0,0)'
@@ -153,10 +160,9 @@ def my_tf_color_func(word, **kwargs):
     min_value = min(wcdict.values())
     max_value = max(wcdict.values())
     act_value = wcdict[word]
-    norm_value = (act_value - min_value) / (max_value - min_value)
-    colour = 'rgb(' + str(int(round(222 * (1 - norm_value)))) + "," + str(int(round(222 * norm_value))) + ',0)'
+    norm_value = (act_value - min_value)/(max_value - min_value)
+    colour = 'rgb(' + str(int(round(222*(1-norm_value)))) + "," + str(int(round(222*norm_value))) + ',0)'
     return colour
-
 
 def clean(tweet):
     tweet = re.sub(r'[.,"!]+', '', tweet, flags=re.MULTILINE)               # removes the characters specified
@@ -171,15 +177,13 @@ def clean(tweet):
     tweet = new_tweet
     return tweet
 
-
 if __name__ == '__main__':
-    multiprocessing.freeze_support()
     TWITTER_TEXT_FILTER = raw_input("Inserte su hashtag: #")
     stopWords += re.findall('[A-Z][^A-Z]*', TWITTER_TEXT_FILTER)
     logging.basicConfig(
         format='%(asctime)s.%(msecs)s:%(name)s:%(thread)d:%(levelname)s:%(process)d:%(message)s',
         level=logging.INFO
-    )
+        )
 
     listener = StdOutListener()
     auth = OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
@@ -196,7 +200,7 @@ if __name__ == '__main__':
     if TWITTER_STREAMING_MODE == 'sample':
         stream.sample()
     else:
-        stream.filter(track=["#" + TWITTER_TEXT_FILTER])
+        stream.filter(track=["#"+TWITTER_TEXT_FILTER])
 
     time.sleep(300)
     producer.stop()
