@@ -10,6 +10,7 @@ import datetime
 import os
 import logging
 import ConfigParser
+import preprocessor
 import simplejson as json
 import time
 from tweepy import OAuthHandler
@@ -18,14 +19,21 @@ from tweepy.streaming import StreamListener
 from kafka import KafkaProducer
 from os import path
 from PIL import Image
-# Sentiment analysis
-from textblob import TextBlob
+# LDA topics
+import gensim
+from gensim import corpora, models
+from gensim.utils import simple_preprocess
+from gensim.parsing.preprocessing import STOPWORDS
+from nltk.stem import WordNetLemmatizer, SnowballStemmer
+from nltk.stem.porter import *
 
+import matplotlib.pyplot as plt
 import numpy as np
 import re
 import string
 from nltk.corpus import stopwords
 import nltk
+nltk.download("wordnet")
 
 # Get your twitter credentials from the environment variables.
 # These are set in the 'twitter-stream.json' manifest file.
@@ -57,74 +65,49 @@ class StdOutListener(StreamListener):
     def on_data(self, data):
         global words
         global clean_tweets
+        global dictionary
         """What to do when tweet data is received."""
         data_json = json.loads(data)
         str_tweet = data_json['text'].encode('utf-8')
         self.producer.send(KAFKA_TOPIC, str_tweet)
-        #print("-", str_tweet)
-        tweet_clean = clean(str_tweet)
-        #print("-", tweet_clean)
-        words = words + tweet_clean
+        print("-", str_tweet)
+        tweet_clean = preprocess(str_tweet)
+        print("-", tweet_clean)
         clean_tweets.append(tweet_clean)
 
-        # Sentiment analysis
-        k = 1
-        positive_tweets, negative_tweets = sentiment_analysis(clean_tweets, k)
-        if len(positive_tweets) >= k and len(negative_tweets) >= k:
-            print
-            print("Top {} positive tweets:".format(k))
-            for i in range(k):
-                print("-", positive_tweets[i])
-            print("Top {} negative tweets:".format(k))
-            for i in range(k):
-                print("-", negative_tweets[i])
+        # Create bag of words
+        dictionary = gensim.corpora.Dictionary(clean_tweets)
+        bow = [dictionary.doc2bow(tweet) for tweet in clean_tweets]
 
-                
+        # TF-IDF
+        tfidf = models.TfidfModel(bow)
+        tweets_tfidf = tfidf[bow]
+
+        # Extract LDA topics
+        if len(clean_tweets) % 10 == 0 and len(clean_tweets) > 0 :
+            num_topics = 10
+            lda_model_tfidf = gensim.models.LdaMulticore(tweets_tfidf, num_topics=num_topics, id2word=dictionary, passes=2, workers=4)
+
+            for idx, topic in lda_model_tfidf.print_topics(-1):
+                print('Topic: {} Word: {}'.format(idx, topic))
+        time.sleep(3)
+
     def on_error(self, status):
         print status
 
-def clean(tweet):
-    tweet = re.sub(r'[.,"!]+', '', tweet, flags=re.MULTILINE)               # removes the characters specified
-    tweet = re.sub(r'^RT[\s]+', '', tweet, flags=re.MULTILINE)              # removes RT
-    tweet = re.sub(r'https?:\/\/.*[\r\n]*', '', tweet, flags=re.MULTILINE)  # remove link
-    tweet = re.sub(r'[:]+', '', tweet, flags=re.MULTILINE)
-    tweet = filter(lambda x: x in string.printable, tweet)                  # filter non-ascii characters
-    new_tweet = ''
-    for i in tweet.split():  # remove @ and #words, punctuataion
-        if not i.startswith('@') and not i.startswith('#') and i not in string.punctuation:
-            new_tweet += i + ' '
-    tweet = new_tweet
-    return tweet
-
-
-def sentiment_analysis(tweets, k):
-    ''' 
-    Returns top-k positive/negative tweets based on polarity score
+def preprocess(tweet):
     '''
-    polarities = []
-    positive_tweets = []
-    negative_tweets = []
-    for tweet in tweets:
-        analysis = TextBlob(tweet) 
-        polarities.append(analysis.sentiment.polarity)
-    polarities_arr = np.array(polarities)
-    sorted_indices = np.argsort(polarities_arr)
-    number_of_pos = len(polarities_arr[polarities_arr > 0])
-    number_of_neg = len(polarities_arr[polarities_arr < 0])
+    Cleans tweet, removes stopwords. Performs tokenization,
+    lemmatization and stemming.
+    '''
+    cleaned_tweet = preprocessor.clean(tweet)  # Cleans tweet
+    processed_tweet = []
+    stemmer = SnowballStemmer("english")
+    for token in gensim.utils.simple_preprocess(cleaned_tweet):
+        if token not in gensim.parsing.preprocessing.STOPWORDS and len(token) > 3:
+            processed_tweet.append(stemmer.stem(WordNetLemmatizer().lemmatize(token, pos='v')))
 
-    print
-    print("----------------------------------------------------")
-    print
-    print("Total number of tweets: {}".format(len(tweets)))
-    print("Percentage of positive tweets: {0:.2f}%".format(number_of_pos * 100.0 / len(tweets)))
-    print("Percentage of negative tweets: {0:.2f}%".format(number_of_neg * 100.0 / len(tweets)))
-    
-    if number_of_pos >= k and number_of_neg >= k:
-        for i in range(k):
-            positive_tweets.append(tweets[sorted_indices[::-1][i]])
-            negative_tweets.append(tweets[sorted_indices[i]])
-
-    return positive_tweets, negative_tweets
+    return processed_tweet
 
 
 if __name__ == '__main__':

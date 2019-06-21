@@ -14,9 +14,17 @@ import time
 from tweepy import OAuthHandler
 from tweepy import Stream
 from tweepy.streaming import StreamListener
-from kafka import KafkaProducer
+from kafka import KafkaProducer, KafkaConsumer
 # Wordcloud
-from wordcloud import WordCloud
+import numpy as np
+import pandas as pd
+from os import path
+from PIL import Image
+from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+# Sentiment analysis
+from textblob import TextBlob
+# Consumer
+import multiprocessing
 
 import matplotlib.pyplot as plt
 import re
@@ -38,50 +46,119 @@ TWITTER_STREAMING_MODE = config.get('Twitter', 'streaming_mode')
 KAFKA_ENDPOINT = '{0}:{1}'.format(config.get('Kafka', 'kafka_endpoint'), config.get('Kafka', 'kafka_endpoint_port'))
 KAFKA_TOPIC = config.get('Kafka', 'topic')
 NUM_RETRIES = 3
+# Global variables
+clean_tweets = []
 words = ""
 # Stopwords (Spanish and English)
 nltk.download('stopwords')
 stopWords = stopwords.words('english')
 stopWords += stopwords.words('spanish')
 # Number of tweets
-n = 5
+n = 10
 i = 0
 # Display time
-d_time = 2
+d_time = 5
+# Sentiment analysis
+wcdict = {}
+# Global frequencies
+wcfreq = {}
 
 class StdOutListener(StreamListener):
-    """A listener handles tweets that are received from the stream.
-    This listener dumps the tweets into a Kafka topic
-    """
-
     producer = KafkaProducer(bootstrap_servers=KAFKA_ENDPOINT)
 
     def on_data(self, data):
-        global words
-        global i
-        """What to do when tweet data is received."""
+        # Tweet received, send to topic
         data_json = json.loads(data)
         str_tweet = data_json['text'].encode('utf-8').lower()
         self.producer.send(KAFKA_TOPIC, str_tweet)
-        print("-", str_tweet)
-        # Clean tweet
-        tweet_clean = clean(str_tweet)
-        words += tweet_clean
-        i += 1
-        i = i % n
-        # Create wordcloud each n tweets
-        if i == 0:
-            # Create and generate a word cloud image:
-            wordcloud = WordCloud(stopwords=stopWords, background_color="white").generate(words)
-            # Mostrar el grafico cada 3 segundos
-            plt.imshow(wordcloud, interpolation='bilinear')
-            plt.axis("off")
-            plt.show(block=False)
-            plt.pause(d_time)
-            plt.close()
 
     def on_error(self, status):
         print(status)
+
+class Consumer(multiprocessing.Process):
+    def __init__(self):
+        multiprocessing.Process.__init__(self)
+        self.stop_event = multiprocessing.Event()
+
+    def stop(self):
+        self.stop_event.set()
+
+    def run(self):
+        consumer = KafkaConsumer(bootstrap_servers=KAFKA_ENDPOINT, consumer_timeout_ms=100)
+        consumer.subscribe([KAFKA_TOPIC])
+
+        while not self.stop_event.is_set():
+            for message in consumer:
+                # Global variables
+                global i
+                global wcdict
+                global wcfreq
+                global words
+                # Clean tweet and print
+                tweet_clean = clean(message.value)
+                print("-", tweet_clean)
+
+                # Sentiment analysis
+                analysis = TextBlob(tweet_clean)
+                sentiment = analysis.sentiment.polarity
+                # Test for words (Comentar despues)
+                for t in tweet_clean.split(" "):
+                    if (t != "" and t not in stopWords):
+                        words += " " + t
+                        if t in wcfreq:
+                            wcfreq[t] += 1
+                        else:
+                            wcfreq[t] = 1
+                        if t in wcdict:
+                            wcdict[t] += sentiment
+                        else:
+                            wcdict[t] = sentiment
+
+                # Topic analysis
+                # Obtener aca el topico de tweet_clean
+                # con ese topico, que llamaremos "topic"
+                # lo agregaremos al diccionario
+                # topic = topicanalysis(tweet_clean)
+                # if (topic != "" and topic not in stopWords):
+                #   if t in wcdict:
+                #       wcdict[topic] += sentiment
+                #   else:
+                #       wcdict[topic] = sentiment
+                # Imprime el diccionario para ver que va bien
+                # print(wcdict)
+
+                # Wordcloud (Imprime cada n tweets, esperando d_time segundos)
+                i += 1
+                i = i % n
+                # Create wordcloud each n tweets
+                if i == 0:
+                    # Create and generate a word cloud image:
+                    wordcloud = WordCloud(stopwords=stopWords, collocations=False,
+                                           colormap='plasma', background_color="white",
+                                           color_func=my_tf_color_func)
+                    wordcloud = wordcloud.generate_from_frequencies(wcfreq)
+                    print(wcdict)
+                    print(wcfreq)
+                    # Mostrar el grafico cada 3 segundos
+                    plt.imshow(wordcloud, interpolation='bilinear')
+                    plt.axis("off")
+                    plt.show(block=False)
+                    plt.pause(d_time)
+                    plt.close()
+                if self.stop_event.is_set():
+                    break
+        consumer.close()
+
+def my_tf_color_func(word, **kwargs):
+    global wcdict
+    clrred = 'rgb(222,0,0)'
+    clrgrn = 'rgb(0,222,0)'
+    min_value = min(wcdict.values())
+    max_value = max(wcdict.values())
+    act_value = wcdict[word]
+    norm_value = (act_value - min_value)/(max_value - min_value)
+    colour = 'rgb(' + str(int(round(222*(1-norm_value)))) + "," + str(int(round(222*norm_value))) + ',0)'
+    return colour
 
 def clean(tweet):
     tweet = re.sub(r'[.,"!]+', '', tweet, flags=re.MULTILINE)               # removes the characters specified
@@ -96,7 +173,6 @@ def clean(tweet):
     tweet = new_tweet
     return tweet
 
-
 if __name__ == '__main__':
     TWITTER_TEXT_FILTER = raw_input("Inserte su hashtag: #")
     stopWords += re.findall('[A-Z][^A-Z]*', TWITTER_TEXT_FILTER)
@@ -109,8 +185,9 @@ if __name__ == '__main__':
     auth = OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
     auth.set_access_token(ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
 
-    print 'stream mode is: %s' % TWITTER_STREAMING_MODE
-
+    print 'Stream mode is: %s' % TWITTER_STREAMING_MODE
+    consumer = Consumer()
+    consumer.start()
     stream = Stream(auth, listener)
     # set up the streaming depending upon whether our mode is 'sample', which
     # will sample the twitter public stream. If not 'sample', instead track
@@ -120,3 +197,9 @@ if __name__ == '__main__':
         stream.sample()
     else:
         stream.filter(track=["#"+TWITTER_TEXT_FILTER])
+
+    time.sleep(300)
+    producer.stop()
+    consumer.stop()
+    producer.join()
+    consumer.join()
